@@ -1,0 +1,29 @@
+name: Setup Python and dependencies
+description: Installe Python, restaure le cache pip (clé basée sur requirements*.txt) et installe les dépendances.
+inputs:
+  python-version:
+    description: Version de Python à installer
+    required: true
+  requirements-file:
+    description: Fichier de dépendances à installer
+    required: false
+    default: requirements-dev.txt
+runs:
+  using: composite
+  steps:
+    - name: Set up Python ${{ inputs.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+    - name: Cache pip
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/pip
+        key: pip-${{ runner.os }}-py${{ inputs.python-version }}-${{ hashFiles('requirements*.txt') }}
+        restore-keys: |
+          pip-${{ runner.os }}-py${{ inputs.python-version }}-
+    - name: Install dependencies
+      shell: bash
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r "${{ inputs.requirements-file }}"
