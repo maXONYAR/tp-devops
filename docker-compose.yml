@@ -47,8 +47,23 @@ services:
       retries: 10
     restart: unless-stopped
 
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/alert.rules.yml:/etc/prometheus/alert.rules.yml:ro
+      - prometheus-data:/prometheus
+    depends_on:
+      - web
+    networks:
+      - app-net
+    restart: unless-stopped
+
 networks:
   app-net:
 
 volumes:
   redis-data:
+  prometheus-data:

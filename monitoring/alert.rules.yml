@@ -1,0 +1,32 @@
+groups:
+  - name: tp-devops-slo
+    rules:
+      - alert: HighErrorRate
+        # Ratio 5xx / total sur fenêtre glissante. Seuil 5 % : au-delà, 1 requête sur 20 échoue.
+        # for: 30s pour réagir vite en atelier (en production : rate[5m] et for: 5m pour filtrer les pics).
+        # Sans trafic le dénominateur est nul : résultat NaN, donc aucune fausse alerte.
+        expr: |
+          sum(rate(http_requests_total{code=~"5.."}[1m]))
+            /
+          sum(rate(http_requests_total[1m])) > 0.05
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "Taux d'erreurs 5xx élevé"
+          description: "Plus de 5 % des requêtes renvoient un 5xx depuis 30 secondes."
+
+      - alert: HighLatencyP95
+        # p95 issu des buckets de l'histogramme, par route. Seuil 500 ms : une route de cette API
+        # répond en quelques ms. for: 2m car la latence fluctue davantage que le taux d'erreur.
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum by (le, endpoint) (rate(http_request_duration_seconds_bucket[5m]))
+          ) > 0.5
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Latence p95 dégradée sur {{ $labels.endpoint }}"
+          description: "Le p95 dépasse 500 ms depuis 2 minutes."
