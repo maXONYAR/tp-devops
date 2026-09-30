@@ -1,0 +1,7 @@
+# Version volontairement naïve (séance 3, étape 1) : conservée pour mesurer le gain du multi-stage.
+FROM python:3.12
+WORKDIR /app
+COPY . .
+RUN pip install -r requirements.txt
+EXPOSE 5000
+CMD ["python", "app.py"]
