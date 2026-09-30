@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# Refuse un commit dont les lignes ajoutées contiennent un motif de secret évident.
+# Activation : git config core.hooksPath .githooks
+set -euo pipefail
+
+patterns=(
+  'AKIA[0-9A-Z]{16}'
+  'gh[pousr]_[A-Za-z0-9]{36}'
+  '-----BEGIN [A-Z ]*PRIVATE KEY-----'
+  '(api[_-]?key|secret|passwd|password|token)[[:space:]]*[=:][[:space:]]*["'"'"'][^"'"'"']{8,}["'"'"']'
+)
+
+added="$(git diff --cached -U0 --diff-filter=ACM -- . ':!.githooks' | grep -E '^\+' | grep -vE '^\+\+\+' || true)"
+
+status=0
+for pattern in "${patterns[@]}"; do
+  if echo "$added" | grep -Eiq -- "$pattern"; then
+    echo "pre-commit : motif de secret détecté ($pattern)" >&2
+    status=1
+  fi
+done
+
+if [ "$status" -ne 0 ]; then
+  echo "Commit refusé : retire le secret (variable d'environnement, secret GitHub) avant de recommencer." >&2
+fi
+exit "$status"
