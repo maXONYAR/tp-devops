@@ -107,3 +107,4 @@ def test_metrics_expose_histogram_and_build_info(client):
     assert "http_request_duration_seconds_count" in text
     assert "http_request_duration_seconds_sum" in text
     assert "app_build_info{" in text
+#ff
