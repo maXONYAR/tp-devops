@@ -1,0 +1,130 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-python-deps
+        with:
+          python-version: "3.12"
+      - name: flake8
+        run: flake8 . --max-line-length=100 --exclude=.venv
+      - name: yamllint
+        run: yamllint .
+     # - name: shellcheck
+      #  run: shellcheck deploy/*.sh .githooks/pre-commit
+      - name: Valider les règles d'alerte Prometheus
+        run: >-
+          docker run --rm --entrypoint promtool
+          -v "$PWD/monitoring:/m:ro" prom/prometheus:v2.55.1
+          check rules /m/alert.rules.yml
+      - name: Valider les fichiers Compose
+        run: |
+          docker compose -f docker-compose.yml config --quiet
+          docker compose -f docker-compose.deploy.yml --profile blue --profile green config --quiet
+
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      REDIS_HOST: localhost
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-python-deps
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: pytest
+        run: >-
+          pytest -v
+          --junitxml=reports/junit-py${{ matrix.python-version }}.xml
+          --cov=app
+          --cov-report=term-missing
+          --cov-report=xml:reports/coverage-py${{ matrix.python-version }}.xml
+          --cov-report=html:reports/htmlcov-py${{ matrix.python-version }}
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports-py${{ matrix.python-version }}
+          path: reports/
+          retention-days: 14
+
+  build:
+    needs: [lint, test]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download test reports
+        uses: actions/download-artifact@v4
+        with:
+          pattern: test-reports-*
+          path: reports
+          merge-multiple: true
+      - name: List reports
+        run: ls -R reports | head -30
+      - uses: docker/setup-buildx-action@v3
+      - name: Build image (sans push)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          load: true
+          tags: tp-devops-web:ci
+          build-args: |
+            APP_VERSION=ci
+            GIT_SHA=${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Vérifier que le conteneur ne tourne pas en root
+        run: |
+          user="$(docker run --rm --entrypoint whoami tp-devops-web:ci)"
+          echo "utilisateur du conteneur : $user"
+          test "$user" != "root"
+
+  ci-ok:
+    # Job final : à exiger comme "required status check" sur la branche main
+    if: always()
+    needs: [lint, test, build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Vérifier que tous les jobs sont verts
+        env:
+          LINT: ${{ needs.lint.result }}
+          TEST: ${{ needs.test.result }}
+          BUILD: ${{ needs.build.result }}
+        run: |
+          echo "lint=$LINT test=$TEST build=$BUILD"
+          if [ "$LINT" != "success" ] || [ "$TEST" != "success" ] || [ "$BUILD" != "success" ]; then
+            echo "La CI n'est pas verte"
+            exit 1
+          fi
