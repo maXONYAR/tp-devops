@@ -25,9 +25,12 @@ jobs:
         run: flake8 . --max-line-length=100 --exclude=.venv
       - name: yamllint
         run: yamllint .
+      - name: shellcheck
+        run: shellcheck deploy/*.sh .githooks/pre-commit
       - name: Valider les fichiers Compose
         run: |
           docker compose -f docker-compose.yml config --quiet
+          docker compose -f docker-compose.deploy.yml --profile blue --profile green config --quiet
 
   test:
     runs-on: ubuntu-latest
