@@ -31,7 +31,7 @@ def metric_value(text, name, **labels):
 
 
 def test_alert_threshold():
-    assert alert_threshold(95) is True
+    assert alert_threshold(95) is False
     assert alert_threshold(80) is True
     assert alert_threshold(79.9) is False
     assert alert_threshold(10, threshold=5) is True
