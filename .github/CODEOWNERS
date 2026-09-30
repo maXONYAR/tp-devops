@@ -1,0 +1,6 @@
+# Remplacer par de vrais pseudos GitHub : un nom inexistant n'assigne personne, sans aucune erreur visible
+*.py            @maXONYAR
+/deploy/        @maXONYAR
+/monitoring/    @maXONYAR
+/.github/       @maXONYAR
+*.md            @maXONYAR
