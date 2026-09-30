@@ -61,7 +61,6 @@ def start_timer():
 
 @app.after_request
 def record_metrics(response):
-    
     if request.path == "/metrics":
         return response
     endpoint = request.url_rule.rule if request.url_rule else "unmatched"
