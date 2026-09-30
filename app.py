@@ -1,3 +1,5 @@
+"""Application Flask du projet DevOps : santé, statut, compteur de visites et métriques."""
+
 import os
 import re
 import time
@@ -61,6 +63,7 @@ def start_timer():
 
 @app.after_request
 def record_metrics(response):
+    # /metrics ne doit pas se compter lui-même à chaque scrape Prometheus
     if request.path == "/metrics":
         return response
     endpoint = request.url_rule.rule if request.url_rule else "unmatched"
