@@ -1,0 +1,62 @@
+# Environnement blue/green : redis et nginx démarrent toujours, seule la couleur ciblée est activée.
+# À piloter via deploy/deploy.sh (qui positionne BLUE_TAG, GREEN_TAG et NGINX_ACTIVE_DIR).
+name: tp-devops-deploy
+
+services:
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    networks:
+      - app-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:1.27-alpine
+    ports:
+      - "${NGINX_PORT:-8080}:80"
+    volumes:
+      # dossiers montés (pas fichiers) : une réécriture de fichier reste visible dans le conteneur
+      - ./deploy/nginx/conf.d:/etc/nginx/conf.d:ro
+      - ${NGINX_ACTIVE_DIR:-./deploy/nginx/active}:/etc/nginx/active:ro
+    networks:
+      - app-net
+    restart: unless-stopped
+
+  app-blue:
+    image: ${IMAGE_NAME:-tp-devops-web}:${BLUE_TAG:-unused}
+    profiles: ["blue"]
+    environment:
+      DEPLOY_COLOR: blue
+      REDIS_HOST: redis
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - app-net
+    restart: unless-stopped
+
+  app-green:
+    image: ${IMAGE_NAME:-tp-devops-web}:${GREEN_TAG:-unused}
+    profiles: ["green"]
+    environment:
+      DEPLOY_COLOR: green
+      REDIS_HOST: redis
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - app-net
+    restart: unless-stopped
+
+networks:
+  app-net:
+
+volumes:
+  redis-data:
