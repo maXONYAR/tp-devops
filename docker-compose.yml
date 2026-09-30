@@ -1,0 +1,57 @@
+# Stack de développement : web + redis + observabilité (Prometheus, Grafana)
+name: tp-devops
+
+services:
+  web:
+    build:
+      context: .
+      args:
+        APP_VERSION: ${APP_VERSION:-dev}
+        GIT_SHA: ${GIT_SHA:-local}
+    image: ${IMAGE_NAME:-tp-devops-web}:${IMAGE_TAG:-dev}
+    ports:
+      - "${WEB_PORT:-5000}:5000"
+    environment:
+      REDIS_HOST: redis
+      DEPLOY_COLOR: dev
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - app-net
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/health', timeout=2)"
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - app-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+ 
+
+networks:
+  app-net:
+
+volumes:
+  redis-data:
+  
